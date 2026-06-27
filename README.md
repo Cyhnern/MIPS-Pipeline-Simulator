@@ -1,6 +1,6 @@
 # MIPS Pipeline Simulator
 Ceyhun Eren tarafından geliştirilmiştir.
-Tarayıcıda aç: http://localhost:5000
+Tarayıcıda aç: https://mips-pipeline-simulator.onrender.com
 ## Özellikler
 - 5 aşamalı MIPS pipeline görselleştirmesi (IF, ID, EX, MEM, WB)
 - Data Hazard (RAW) tespiti
