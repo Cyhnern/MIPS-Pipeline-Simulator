@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MIPS Pipeline Simulator</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #0b0f1a;
+      --surface: #111827;
+      --surface2: #1a2235;
+      --border: #1e2d45;
+      --accent: #FED141;
+      --accent2: #13294B;
+      --text: #e2e8f0;
+      --muted: #64748b;
+      --if: #3b82f6;
+      --id: #8b5cf6;
+      --ex: #f59e0b;
+      --mem: #10b981;
+      --wb: #ef4444;
+      --hazard-data: #f59e0b;
+      --hazard-load: #ef4444;
+      --hazard-control: #8b5cf6;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* HEADER */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 1rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .logo-icon {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, var(--accent2), #1e40af);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem;
+    }
+
+    .logo-text { font-size: 1.1rem; font-weight: 800; }
+    .logo-text span { color: var(--accent); }
+
+    .badge {
+      margin-left: auto;
+      background: var(--accent2);
+      color: var(--accent);
+      font-size: 0.65rem;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 0.25rem 0.75rem;
+      border-radius: 99px;
+      border: 1px solid var(--accent);
+    }
+
+    /* LAYOUT */
+    .container {
+      max-width: 1300px;
+      margin: 0 auto;
+      padding: 2rem;
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 1.5rem;
+    }
+
+    /* PANEL */
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+
+    .panel-header {
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+
+    .panel-header .dot { width: 8px; height: 8px; border-radius: 50%; }
+
+    /* EDITOR */
+    .editor-area {
+      display: flex;
+      font-family: 'Cascadia Code', 'Fira Code', 'Courier New', monospace;
+      font-size: 0.85rem;
+    }
+
+    .line-numbers {
+      padding: 1rem 0.75rem;
+      background: var(--surface2);
+      color: var(--muted);
+      text-align: right;
+      border-right: 1px solid var(--border);
+      min-width: 40px;
+      line-height: 1.6;
+      user-select: none;
+    }
+
+    textarea {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text);
+      padding: 1rem;
+      font-family: inherit;
+      font-size: inherit;
+      line-height: 1.6;
+      resize: none;
+      min-height: 240px;
+    }
+
+    /* EXAMPLES */
+    .examples {
+      padding: 1rem 1.25rem;
+      border-top: 1px solid var(--border);
+    }
+
+    .examples-label {
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 0.6rem;
+    }
+
+    .example-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+
+    .chip {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 0.3rem 0.7rem;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .chip:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* SIMULATE BUTTON */
+    .simulate-btn {
+      width: calc(100% - 2.5rem);
+      margin: 1rem 1.25rem;
+      padding: 0.85rem;
+      background: linear-gradient(135deg, var(--accent2), #1e40af);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      font-weight: 800;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+    .simulate-btn:hover { transform: translateY(-1px); filter: brightness(1.1); }
+    .simulate-btn:active { transform: translateY(0); }
+    .simulate-btn.loading { opacity: 0.7; pointer-events: none; }
+
+    /* STATS */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.75rem;
+      padding: 1.25rem;
+    }
+
+    .stat {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.85rem;
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 1.5rem;
+      font-weight: 900;
+      color: var(--accent);
+      line-height: 1;
+    }
+
+    .stat-label {
+      font-size: 0.65rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--muted);
+      margin-top: 0.3rem;
+    }
+
+    /* PIPELINE TABLE */
+    .pipeline-wrap {
+      overflow-x: auto;
+      padding: 1.25rem;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      min-width: 600px;
+    }
+
+    th {
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--muted);
+      padding: 0.5rem 0.75rem;
+      text-align: center;
+      border-bottom: 1px solid var(--border);
+    }
+
+    th.instr-col { text-align: left; min-width: 180px; }
+
+    td {
+      padding: 0.4rem 0.5rem;
+      text-align: center;
+      font-size: 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    td.instr-cell {
+      text-align: left;
+      font-family: 'Cascadia Code', 'Fira Code', monospace;
+      font-size: 0.78rem;
+      color: var(--text);
+      padding-left: 0.75rem;
+    }
+
+    .stage-badge {
+      display: inline-block;
+      padding: 0.2rem 0.55rem;
+      border-radius: 5px;
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+    }
+
+    .stage-IF  { background: rgba(59,130,246,0.2);  color: #93c5fd; }
+    .stage-ID  { background: rgba(139,92,246,0.2);  color: #c4b5fd; }
+    .stage-EX  { background: rgba(245,158,11,0.2);  color: #fcd34d; }
+    .stage-MEM { background: rgba(16,185,129,0.2);  color: #6ee7b7; }
+    .stage-WB  { background: rgba(239,68,68,0.2);   color: #fca5a5; }
+    .stage-stall { background: rgba(100,116,139,0.15); color: var(--muted); font-size: 0.6rem; }
+
+    /* HAZARDS */
+    .hazards-list { padding: 0 1.25rem 1.25rem; display: flex; flex-direction: column; gap: 0.6rem; }
+
+    .hazard-card {
+      border-radius: 10px;
+      padding: 0.85rem 1rem;
+      border-left: 3px solid;
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+    }
+
+    .hazard-card.data    { background: rgba(245,158,11,0.08); border-color: var(--hazard-data); }
+    .hazard-card.load-use { background: rgba(239,68,68,0.08);  border-color: var(--hazard-load); }
+    .hazard-card.control  { background: rgba(139,92,246,0.08); border-color: var(--hazard-control); }
+
+    .hazard-type {
+      font-size: 0.65rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .data .hazard-type    { color: var(--hazard-data); }
+    .load-use .hazard-type { color: var(--hazard-load); }
+    .control .hazard-type  { color: var(--hazard-control); }
+
+    .hazard-desc { font-size: 0.78rem; line-height: 1.5; color: var(--text); }
+    .hazard-solution { font-size: 0.7rem; color: var(--muted); }
+    .hazard-solution span { color: #34d399; font-weight: 700; }
+
+    /* LEGEND */
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      padding: 1rem 1.25rem;
+      border-top: 1px solid var(--border);
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.7rem;
+      color: var(--muted);
+    }
+
+    .legend-dot {
+      width: 10px; height: 10px;
+      border-radius: 3px;
+    }
+
+    /* EMPTY STATE */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 4rem 2rem;
+      color: var(--muted);
+      text-align: center;
+      gap: 0.75rem;
+    }
+
+    .empty-icon { font-size: 2.5rem; opacity: 0.4; }
+    .empty-title { font-size: 0.9rem; font-weight: 700; }
+    .empty-sub { font-size: 0.78rem; max-width: 260px; line-height: 1.6; }
+
+    /* RIGHT COLUMN */
+    .right-col { display: flex; flex-direction: column; gap: 1.5rem; }
+
+    /* ERROR */
+    .error-msg {
+      background: rgba(239,68,68,0.1);
+      border: 1px solid rgba(239,68,68,0.3);
+      color: #fca5a5;
+      border-radius: 10px;
+      padding: 1rem;
+      font-size: 0.82rem;
+      display: none;
+    }
+
+    /* TYPE BADGE */
+    .type-badge {
+      display: inline-block;
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.62rem;
+      font-weight: 800;
+      margin-right: 0.35rem;
+    }
+    .type-R { background: rgba(59,130,246,0.2); color: #93c5fd; }
+    .type-I { background: rgba(16,185,129,0.2); color: #6ee7b7; }
+    .type-J { background: rgba(245,158,11,0.2); color: #fcd34d; }
+    .type-q { background: rgba(100,116,139,0.2); color: var(--muted); }
+
+    @media (max-width: 900px) {
+      .container { grid-template-columns: 1fr; padding: 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">⚙️</div>
+    <div class="logo-text">MIPS Pipeline <span>Simulator</span></div>
+  </div>
+  <div class="badge">5-Stage Pipeline</div>
+</header>
+
+<div class="container">
+  <!-- SOL: EDITOR -->
+  <div style="display:flex;flex-direction:column;gap:1.5rem;">
+    <div class="panel">
+      <div class="panel-header">
+        <div class="dot" style="background:#ef4444"></div>
+        <div class="dot" style="background:#f59e0b"></div>
+        <div class="dot" style="background:#10b981"></div>
+        &nbsp; MIPS Assembly Editörü
+      </div>
+      <div class="editor-area">
+        <div class="line-numbers" id="lineNumbers">1</div>
+        <textarea id="codeEditor" placeholder="# MIPS komutlarını buraya yazın&#10;# Örnek:&#10;add $t0, $t1, $t2&#10;lw $t3, 0($t0)&#10;sub $t4, $t3, $t1" spellcheck="false"></textarea>
+      </div>
+      <div class="examples">
+        <div class="examples-label">Örnek Kod Yükle</div>
+        <div class="example-chips">
+          <div class="chip" onclick="loadExample('basic')">Temel R-Type</div>
+          <div class="chip" onclick="loadExample('data_hazard')">Data Hazard</div>
+          <div class="chip" onclick="loadExample('load_use')">Load-Use Hazard</div>
+          <div class="chip" onclick="loadExample('control')">Control Hazard</div>
+          <div class="chip" onclick="loadExample('mixed')">Karışık</div>
+        </div>
+      </div>
+      <button class="simulate-btn" id="simBtn" onclick="simulate()">
+        ▶ Simülasyonu Başlat
+      </button>
+    </div>
+
+    <!-- STAGE LEGEND -->
+    <div class="panel">
+      <div class="panel-header"><div class="dot" style="background:var(--accent)"></div>&nbsp; Pipeline Aşamaları</div>
+      <div style="padding:1rem 1.25rem;display:flex;flex-direction:column;gap:0.6rem;">
+        <div style="display:flex;align-items:center;gap:0.75rem;font-size:0.8rem;">
+          <span class="stage-badge stage-IF">IF</span>
+          <span style="color:var(--muted)">Instruction Fetch — Komut bellekten alınır</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:0.75rem;font-size:0.8rem;">
+          <span class="stage-badge stage-ID">ID</span>
+          <span style="color:var(--muted)">Instruction Decode — Komut çözümlenir, register okunur</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:0.75rem;font-size:0.8rem;">
+          <span class="stage-badge stage-EX">EX</span>
+          <span style="color:var(--muted)">Execute — ALU işlemi gerçekleştirilir</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:0.75rem;font-size:0.8rem;">
+          <span class="stage-badge stage-MEM">MEM</span>
+          <span style="color:var(--muted)">Memory Access — Bellek okuma/yazma</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:0.75rem;font-size:0.8rem;">
+          <span class="stage-badge stage-WB">WB</span>
+          <span style="color:var(--muted)">Write Back — Sonuç register'a yazılır</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SAĞ: SONUÇLAR -->
+  <div class="right-col">
+    <div class="error-msg" id="errorMsg"></div>
+
+    <!-- STATS -->
+    <div class="panel" id="statsPanel" style="display:none;">
+      <div class="panel-header"><div class="dot" style="background:var(--accent)"></div>&nbsp; Performans Analizi</div>
+      <div class="stats-grid">
+        <div class="stat">
+          <div class="stat-value" id="statCycles">—</div>
+          <div class="stat-label">Toplam Cycle</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="statCPI">—</div>
+          <div class="stat-label">CPI</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="statStalls">—</div>
+          <div class="stat-label">Stall Cycle</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="statInstrs">—</div>
+          <div class="stat-label">Komut Sayısı</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="statHazards">—</div>
+          <div class="stat-label">Hazard Sayısı</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="statEff">—</div>
+          <div class="stat-label">Verimlilik</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PIPELINE TABLE -->
+    <div class="panel" id="pipelinePanel">
+      <div class="panel-header"><div class="dot" style="background:#3b82f6"></div>&nbsp; Pipeline Zaman Çizelgesi</div>
+      <div id="pipelineContent">
+        <div class="empty-state">
+          <div class="empty-icon">⚙️</div>
+          <div class="empty-title">Simülasyon Bekleniyor</div>
+          <div class="empty-sub">Sol taraftaki editöre MIPS komutlarını yazın ve "Simülasyonu Başlat" butonuna tıklayın.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- HAZARDS -->
+    <div class="panel" id="hazardPanel" style="display:none;">
+      <div class="panel-header"><div class="dot" style="background:#ef4444"></div>&nbsp; Hazard Analizi</div>
+      <div class="hazards-list" id="hazardList"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const examples = {
+    basic: `add $t0, $t1, $t2\nsub $t3, $t0, $t4\nand $t5, $t1, $t2\nor $t6, $t5, $t3\nslt $t7, $t0, $t3`,
+    data_hazard: `# Data Hazard Örneği\nadd $t0, $t1, $t2\nsub $t3, $t0, $t4\nadd $t5, $t0, $t3`,
+    load_use: `# Load-Use Hazard (1 Stall Gerekli)\nlw $t0, 0($t1)\nadd $t2, $t0, $t3\nsub $t4, $t2, $t5`,
+    control: `# Control Hazard\nbeq $t0, $t1, label\nadd $t2, $t3, $t4\nsub $t5, $t6, $t7`,
+    mixed: `lw $t0, 0($s0)\nadd $t1, $t0, $s1\nsub $t2, $t1, $t0\nbeq $t1, $t2, end\nadd $t3, $t2, $s2\nor $t4, $t3, $t1`
+  };
+
+  function loadExample(key) {
+    document.getElementById('codeEditor').value = examples[key];
+    updateLineNumbers();
+  }
+
+  function updateLineNumbers() {
+    const lines = document.getElementById('codeEditor').value.split('\n').length;
+    document.getElementById('lineNumbers').innerHTML = Array.from({length: lines}, (_, i) => i + 1).join('<br>');
+  }
+
+  document.getElementById('codeEditor').addEventListener('input', updateLineNumbers);
+  document.getElementById('codeEditor').addEventListener('scroll', function() {
+    document.getElementById('lineNumbers').scrollTop = this.scrollTop;
+  });
+
+  async function simulate() {
+    const code = document.getElementById('codeEditor').value.trim();
+    if (!code) return;
+
+    const btn = document.getElementById('simBtn');
+    btn.classList.add('loading');
+    btn.textContent = '⏳ Simüle ediliyor...';
+
+    document.getElementById('errorMsg').style.display = 'none';
+
+    try {
+      const res = await fetch('/simulate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code })
+      });
+      const data = await res.json();
+
+      if (data.error) {
+        document.getElementById('errorMsg').textContent = data.error;
+        document.getElementById('errorMsg').style.display = 'block';
+        return;
+      }
+
+      renderResults(data);
+    } catch(e) {
+      document.getElementById('errorMsg').textContent = 'Sunucuya bağlanılamadı.';
+      document.getElementById('errorMsg').style.display = 'block';
+    } finally {
+      btn.classList.remove('loading');
+      btn.innerHTML = '▶ Simülasyonu Başlat';
+    }
+  }
+
+  function renderResults(data) {
+    // Stats
+    document.getElementById('statsPanel').style.display = 'block';
+    document.getElementById('statCycles').textContent = data.total_cycles;
+    document.getElementById('statCPI').textContent = data.cpi;
+    document.getElementById('statStalls').textContent = data.stall_cycles;
+    document.getElementById('statInstrs').textContent = data.total_instructions;
+    document.getElementById('statHazards').textContent = data.hazards.length;
+    const eff = Math.round((data.total_instructions / data.total_cycles) * 100);
+    document.getElementById('statEff').textContent = eff + '%';
+
+    // Pipeline Table
+    const maxCycle = Math.max(...data.pipeline_table.map(r => Math.max(...Object.keys(r.stages).map(Number))));
+    const cycles = Array.from({length: maxCycle}, (_, i) => i + 1);
+
+    let html = `<div class="pipeline-wrap"><table>
+      <thead><tr>
+        <th class="instr-col">Komut</th>
+        ${cycles.map(c => `<th>C${c}</th>`).join('')}
+      </tr></thead>
+      <tbody>`;
+
+    data.pipeline_table.forEach((row, idx) => {
+      const typeClass = `type-${row.type}`;
+      html += `<tr>
+        <td class="instr-cell">
+          <span class="type-badge ${typeClass}">${row.type}</span>${row.instruction}
+        </td>
+        ${cycles.map(c => {
+          const stage = row.stages[c];
+          if (stage) return `<td><span class="stage-badge stage-${stage}">${stage}</span></td>`;
+          // stall göster
+          const keys = Object.keys(row.stages).map(Number).sort((a,b)=>a-b);
+          const first = keys[0], last = keys[keys.length-1];
+          if (c >= first && c <= last && !stage) return `<td><span class="stage-badge stage-stall">STALL</span></td>`;
+          return `<td></td>`;
+        }).join('')}
+      </tr>`;
+    });
+
+    html += '</tbody></table></div>';
+
+    // Legend
+    html += `<div class="legend">
+      ${['IF','ID','EX','MEM','WB'].map(s => `<div class="legend-item"><div class="legend-dot stage-${s}" style="background:currentColor;opacity:0.6"></div>${s}</div>`).join('')}
+    </div>`;
+
+    document.getElementById('pipelineContent').innerHTML = html;
+
+    // Hazards
+    if (data.hazards.length > 0) {
+      document.getElementById('hazardPanel').style.display = 'block';
+      const hazardHtml = data.hazards.map(h => `
+        <div class="hazard-card ${h.type}">
+          <div class="hazard-type">${h.type === 'load-use' ? '⛔ Load-Use Hazard' : h.type === 'data' ? '⚠️ Data Hazard (RAW)' : '🔀 Control Hazard'}</div>
+          <div class="hazard-desc">${h.description}</div>
+          <div class="hazard-solution">Çözüm: <span>${h.solution}</span></div>
+        </div>
+      `).join('');
+      document.getElementById('hazardList').innerHTML = hazardHtml;
+    } else {
+      document.getElementById('hazardPanel').style.display = 'block';
+      document.getElementById('hazardList').innerHTML = `
+        <div style="padding:1rem;text-align:center;color:#34d399;font-size:0.85rem;font-weight:700;">
+          ✅ Hazard tespit edilmedi! Pipeline sorunsuz çalışıyor.
+        </div>`;
+    }
+  }
+</script>
+</body>
+</html>
